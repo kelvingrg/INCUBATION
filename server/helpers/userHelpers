@@ -1,0 +1,100 @@
+const db=require('../config/db')
+const USERS=require('../model/userModel').users
+const APPLICATION=require('../model/userModel').applications
+const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
+require('dotenv').config();
+//const JWT_KEY=process.env.JWT_KEY
+const JWT_KEY='password'
+
+
+
+module.exports={
+    doSignup:(userData)=>{
+        return new Promise(async(resolve,reject)=>{
+let emailerr= await USERS.count({email:userData.email})>0
+let moberr= await USERS.count({mobNumber:userData.mobNumber})>0
+console.log(emailerr,moberr,"emailerr,moberr");
+
+
+if(emailerr||moberr){
+    console.log(emailerr,moberr);
+    resolve({moberr,emailerr})
+
+}
+else{
+bcrypt.genSalt(10, (err, salt) => { 
+            bcrypt.hash(userData.password, salt, async(err, hashedPassword) => {
+              if(err){ 
+                console.log(`ERROR : ${err}`);
+              } else {
+                let password = hashedPassword;
+                    await new USERS({
+                       name: userData.name,
+                       email:userData.email,
+                       mobNumber:userData.mobNumber,
+                       password:password,
+                       timeStamp:new Date()
+                    }).save().then((response)=>{
+                        console.log(response,"response at helpers");
+                        resolve(response)
+                    })
+              }
+            });
+          });
+        }
+        })
+      
+            
+
+    },
+    doLogin:(loginData)=>{
+      return new Promise(async(resolve,reject)=>{
+        console.log('reached at do login helpers ',loginData,USERS)
+       let userData= await USERS.find({email:loginData.email})
+
+       if(userData.length>0){
+        console.log(userData);
+     const isMatch= await bcrypt.compare(loginData.password, userData[0].password)
+     if(isMatch)  { 
+
+        const userToken =  jwt.sign({name: "user", email: userData.email},JWT_KEY)
+                console.log("success");
+
+           
+       
+      resolve({login:true,userData,userToken:userToken})
+    
+    
+    }
+     else {resolve({login:false})}
+       }else{
+console.log('else');
+resolve({login:false})
+       }
+      })
+    },
+    applicationForm:(formData)=>{
+      formData.timeStamp=new Date();
+      formData.status="Pending"
+      formData.view="false"
+      console.log('reaxched at user helpers ',formData);
+      return new Promise(async(resolve,reject)=>{
+         await APPLICATION(formData).save().then((response)=>{
+          resolve(response)
+          console.log(response,'response after collection crewated');
+         })
+      })
+
+    },
+    viewStatus:(userId)=>{
+      return new Promise(async(resolve,reject)=>{
+        await APPLICATION.find({userId:userId}).then((response)=>{
+        console.log(response,"response at appliaction view status ");  
+        resolve(response)
+        })
+      })
+    }
+       
+
+}
